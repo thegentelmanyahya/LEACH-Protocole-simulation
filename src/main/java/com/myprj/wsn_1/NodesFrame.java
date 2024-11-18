@@ -160,15 +160,11 @@ public class NodesFrame extends JFrame {
 
         // Phase de communication
         communicationPhase();
-        currentRound++;
-         // Envoyer des messages en fonction des cas 
-            //1er cas : le CH existe
-           
-           // S'il n'y a pas de cluster head, envoyer le message directement au sink
-           
-           
+        displayNodeEnergy();
 
+        currentRound++;
         repaint();
+
            // A la fin de la simulation
           if (currentRound==network.getNbrRounds()+1){
            System.out.println("Simulation completed.");
@@ -203,11 +199,16 @@ public class NodesFrame extends JFrame {
     
   //methode pour les noeuds qui se trouvent en dehors des cluster et qui envoie le messge vers le sink directement
     private void sendMessagesWithoutCluster() {
+        double sendThreshold = 0.2; // Probabilité d'envoi (entre 0 et 1)
+        int messageSize = 10 ; // par exemple (d'ailleurs c'est la taille moyen des messages dans un wsn)
         // Vérifier si la méthode a déjà été exécutée
         if (!hasBeenExecuted) {
             for (Nodes node : nodesList2) {
-                if (!communicationModel.getNodesListInSomeCluster().contains(node) && !node.isClusterHead()) {
+                if (!communicationModel.getNodesListInSomeCluster().contains(node) && !node.isClusterHead() && Math.random() < sendThreshold) {
                     sendMessagesToSink(node);
+                    double energyDissipated = calculateEnergyDissipation(node, nodesList.get(nodesList.size()-1), messageSize);
+                    historyFrame.appendText("CH " + node.getId() + " → Sink | Energy dissipated: "
+                            + energyDissipated + " J");
                 }
             }
     }
@@ -229,36 +230,27 @@ public class NodesFrame extends JFrame {
 		}
         
     }
-	//methode pour les noeuds qui se trouve à l'interieur des cluster et qui envoie le messge vers le cluster head
-    private void sendMessagesWithinCluster(Nodes clusterHead) {
-        for (Nodes clusterMember : clusterHead.getClusterMembers()) {
-            clusterMember.setMessage("Message from Node " + clusterMember.getId() + " to Cluster Head " + clusterHead.getId());
-            System.out.println(clusterMember.getMessage());
-            historyFrame.appendText(clusterMember.getMessage());
-    		drawArrow(clusterMember.getPositionX(), clusterMember.getPositionY(), clusterHead.getPositionX(), clusterHead.getPositionY());
-        }
-    }
 
     //phase de communication (on a choisi l'option de communication la plus simple 😁)
     private void communicationPhase() {
         double sendThreshold = 0.3; // Probabilité d'envoi (entre 0 et 1)
-
+        int messageSize = 10 ; // par exemple (d'ailleurs c'est la taille moyen des messages dans un wsn)
         for (Nodes clusterHead : communicationModel.getClusterHeads()) {
             // Les nœuds membres envoient leurs messages au Cluster Head
             for (Nodes clusterMember : clusterHead.getClusterMembers()) {
                 if (Math.random() < sendThreshold) {
-                    clusterMember.setMessage("Message from Node " + clusterMember.getId() + " to Cluster Head " + clusterHead.getId());
+                    double energyDissipated = calculateEnergyDissipation(clusterMember, clusterHead, messageSize);
+                    clusterMember.setMessage("Node " + clusterMember.getId() + " → CH " + clusterHead.getId() + " | Energy dissipated: " + energyDissipated + " J");
                     System.out.println(clusterMember.getMessage());
                     historyFrame.appendText(clusterMember.getMessage());
                     drawArrow(clusterMember.getPositionX(), clusterMember.getPositionY(), clusterHead.getPositionX(), clusterHead.getPositionY());
-                } else {
-                    System.out.println("Node " + clusterMember.getId() + " did not send a message this round.");
-                    historyFrame.appendText("Node " + clusterMember.getId() + " did not send a message this round.");
                 }
             }
-
             // Le Cluster Head envoie un message au Sink
             sendClusterHeadMessagesToSink(clusterHead);
+            double energyDissipated = calculateEnergyDissipation(clusterHead, nodesList.get(nodesList.size()-1), messageSize);
+            historyFrame.appendText("CH " + clusterHead.getId() + " → Sink | Energy dissipated: "
+                    + energyDissipated + " J");
         }
 
         // Les nœuds sans Cluster Head envoient directement au Sink
@@ -278,8 +270,31 @@ public class NodesFrame extends JFrame {
         }
         return p / (1 - p * (currentRound % (1 / p)));
     }
+// voir la formule de calcule de la dissipation d'énérgie dans le rapport du TP
+    private double calculateEnergyDissipation(Nodes source, Nodes destination, int messageSize) {
+        double distance = Math.sqrt(Math.pow(source.getPositionX() - destination.getPositionX(), 2)
+                + Math.pow(source.getPositionY() - destination.getPositionY(), 2));
+        double E_elec = 50e-9; // Énergie électronique en joules (50 nJ/bit)
+        double epsilon_amp = 10e-12; // Énergie d'amplification (10 pJ/bit/m²)
+        int n = 2; // Facteur d'atténuation pour espace libre
 
-   /* public static void main(String[] args) {
-        java.awt.EventQueue.invokeLater(() -> new NodesFrame(new StartSim()).setVisible(true));
-    }*/
+        // Énergie pour transmettre
+        double E_TX = messageSize * E_elec + messageSize * epsilon_amp * Math.pow(distance, n);
+
+        // Énergie pour recevoir (par le destinataire)
+        double E_RX = messageSize * E_elec;
+
+        // Réduire l'énergie des nœuds
+        source.reduceEnergy(E_TX);
+        destination.reduceEnergy(E_RX);
+
+        return E_TX + E_RX; // Retourne la dissipation totale
+    }
+    private void displayNodeEnergy() {
+        for (Nodes node : nodesList) {
+            System.out.println("Node " + node.getId() + ": Energy remaining = " + node.getEnergy() + " J");
+        }
+    }
+
+
 }

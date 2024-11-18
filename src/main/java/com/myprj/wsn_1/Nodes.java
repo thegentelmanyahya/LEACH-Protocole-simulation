@@ -7,7 +7,7 @@ import java.util.List;
 public class Nodes {
 
 	private int id;
-	private int energie;
+	private double energy; // Énergie restante en Joules
 	private int rayonCommunication;
 	private int positionX;
 	private int positionY;
@@ -21,6 +21,7 @@ public class Nodes {
     public Nodes() {
         this.clusterMembers = new ArrayList<>();
         this.message="";
+		this.energy=0.5; //energie initiale
 	}
     
     
@@ -69,11 +70,11 @@ public class Nodes {
 	public void setId(int id) {
 		this.id = id;
 	}
-	public int getEnergie() {
-		return energie;
+	public double getEnergy() {
+		return energy;
 	}
-	public void setEnergie(int energie) {
-		this.energie = energie;
+	public void setEnergy(double energie) {
+		this.energy = energie;
 	}
 	public int getRayonCommunication() {
 		return rayonCommunication;
@@ -93,7 +94,11 @@ public class Nodes {
 	public void setPositionY(int positionY) {
 		this.positionY = positionY;
 	}
-	
-
-
+	//soustraire l'energie consommée
+	public void reduceEnergy(double amount) {
+		this.energy -= amount;
+		if (this.energy < 0) {
+			this.energy = 0; // Éviter une énergie négative
+		}
+	}
 }
